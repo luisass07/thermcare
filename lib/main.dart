@@ -21,7 +21,7 @@ class ThermCareApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Roboto',
       ),
-      home: const LoginScreen(),
+      home: LoginScreen(),
     );
   }
 }
