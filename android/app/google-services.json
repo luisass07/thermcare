@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "701900543695",
+    "project_id": "thermcare-a8132",
+    "storage_bucket": "thermcare-a8132.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:701900543695:android:96f4eb30c897d4708989ba",
+        "android_client_info": {
+          "package_name": "com.example.thermcare"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBt6Uynryq7U37VYmqTbKVlGecHuronVSw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
