@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'history_screen.dart';
 import 'emergency_screen.dart';
+import 'profile_screen.dart';
+import 'notifications_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -34,7 +37,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [_buildHome(), const HistoryScreen(), const EmergencyScreen()];
+    final pages = [
+      _buildHome(),
+      const HistoryScreen(),
+      const EmergencyScreen(),
+      const NotificationsScreen(),
+      const ProfileScreen(),
+    ];
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D1B2A),
@@ -66,11 +75,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         backgroundColor: const Color(0xFF1A2D45),
         selectedItemColor: const Color(0xFF0A7AFF),
         unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
         onTap: (i) => setState(() => _currentIndex = i),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
           BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Historial'),
           BottomNavigationBarItem(icon: Icon(Icons.emergency), label: 'Emergencia'),
+          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Alertas'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
         ],
       ),
     );
@@ -104,12 +116,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
                   decoration: BoxDecoration(
-                    color: estadoColor.withOpacity(0.2),
+                    color: estadoColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: estadoColor),
                   ),
                   child: Text(estado,
-                      style: TextStyle(color: estadoColor, fontWeight: FontWeight.bold)),
+                      style: TextStyle(
+                          color: estadoColor, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -117,9 +130,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 24),
           Row(
             children: [
-              _infoCard('Paciente', 'Juan Pérez', Icons.person),
+              _infoCard('Paciente', 'Usuario', Icons.person),
               const SizedBox(width: 16),
-              _infoCard('Última lectura', '${DateTime.now().hour}:${DateTime.now().minute}', Icons.access_time),
+              _infoCard('Última lectura',
+                  '${DateTime.now().hour}:${DateTime.now().minute}',
+                  Icons.access_time),
             ],
           ),
           const SizedBox(height: 24),
@@ -157,10 +172,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             Icon(icon, color: const Color(0xFF0A7AFF), size: 20),
             const SizedBox(height: 8),
-            Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            Text(title,
+                style: const TextStyle(color: Colors.grey, fontSize: 12)),
             Text(value,
                 style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15)),
           ],
         ),
       ),
