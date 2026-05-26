@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'history_screen.dart';
 import 'emergency_screen.dart';
 import 'profile_screen.dart';
@@ -18,6 +19,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Color estadoColor = const Color(0xFF00C48C);
   bool conectado = false;
   int _currentIndex = 0;
+  String nombreUsuario = 'Cargando...';
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarNombre();
+  }
+
+  Future<void> _cargarNombre() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final doc = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(user.uid)
+          .get();
+      setState(() {
+        nombreUsuario = doc.data()?['nombre'] ?? user.email ?? 'Usuario';
+      });
+    }
+  }
 
   void _simularLectura() {
     setState(() {
@@ -130,7 +151,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 24),
           Row(
             children: [
-              _infoCard('Paciente', 'Usuario', Icons.person),
+              _infoCard('Paciente', nombreUsuario, Icons.person),
               const SizedBox(width: 16),
               _infoCard('Última lectura',
                   '${DateTime.now().hour}:${DateTime.now().minute}',

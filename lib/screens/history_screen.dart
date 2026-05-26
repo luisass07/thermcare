@@ -8,7 +8,7 @@ class HistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -69,13 +69,13 @@ class HistoryScreen extends StatelessWidget {
                     barWidth: 3,
                     belowBarData: BarAreaData(
                       show: true,
-                      color: const Color(0xFF0A7AFF).withOpacity(0.15),
+                      color: const Color(0xFF0A7AFF).withValues(alpha: 0.15),
                     ),
                     dotData: const FlDotData(show: false),
                   ),
                   LineChartBarData(
                     spots: List.generate(10, (i) => FlSpot(i.toDouble(), 38.0)),
-                    color: Colors.redAccent.withOpacity(0.5),
+                    color: Colors.redAccent.withValues(alpha: 0.5),
                     barWidth: 1,
                     dashArray: [6, 4],
                     dotData: const FlDotData(show: false),
@@ -103,7 +103,7 @@ class HistoryScreen extends StatelessWidget {
         color: const Color(0xFF1A2D45),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isHigh ? Colors.redAccent.withOpacity(0.5) : Colors.transparent,
+          color: isHigh ? Colors.redAccent.withValues(alpha: 0.5) : Colors.transparent,
         ),
       ),
       child: Row(
@@ -120,7 +120,9 @@ class HistoryScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
             decoration: BoxDecoration(
-              color: isHigh ? Colors.redAccent.withOpacity(0.2) : Colors.green.withOpacity(0.2),
+              color: isHigh
+                  ? Colors.redAccent.withValues(alpha: 0.2)
+                  : Colors.green.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
