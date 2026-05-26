@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'history_screen.dart';
 import 'emergency_screen.dart';
 import 'profile_screen.dart';
@@ -20,6 +22,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool conectado = false;
   int _currentIndex = 0;
   String nombreUsuario = 'Cargando...';
+  BluetoothDevice? _device;
+  BluetoothCharacteristic? _characteristic;
+  bool _alertaMostrada = false;
+
+  static const String SERVICE_UUID = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
+  static const String CHAR_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
+
+  // ← CAMBIA ESTE NÚMERO POR EL DEL MÉDICO REAL
+  static const String NUMERO_MEDICO = '323 3047483';
 
   @override
   void initState() {
@@ -40,20 +51,148 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  void _simularLectura() {
+  void _actualizarEstado(double temp) {
     setState(() {
-      temperatura = 36.0 + (DateTime.now().millisecond % 30) / 10;
+      temperatura = temp;
       if (temperatura >= 38.0) {
         estado = '⚠️ Fiebre';
         estadoColor = Colors.redAccent;
+        if (!_alertaMostrada) {
+          _alertaMostrada = true;
+          _mostrarAlertaFiebre();
+        }
       } else if (temperatura >= 37.5) {
         estado = 'Temperatura alta';
         estadoColor = Colors.orange;
+        _alertaMostrada = false;
       } else {
         estado = 'Normal';
         estadoColor = const Color(0xFF00C48C);
+        _alertaMostrada = false;
       }
     });
+  }
+
+  void _mostrarAlertaFiebre() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1A2D45),
+        title: const Text('⚠️ Temperatura Alta',
+            style: TextStyle(
+                color: Colors.redAccent, fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Se detectó fiebre. Se recomienda contactar a tu médico de inmediato.',
+          style: TextStyle(color: Colors.white),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar',
+                style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent),
+            icon: const Icon(Icons.call, color: Colors.white),
+            label: const Text('Llamar médico',
+                style: TextStyle(color: Colors.white)),
+            onPressed: () async {
+              Navigator.pop(context);
+              final uri = Uri.parse('tel:$NUMERO_MEDICO');
+              if (await canLaunchUrl(uri)) await launchUrl(uri);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _simularLectura() {
+    final temp = 36.0 + (DateTime.now().millisecond % 30) / 10;
+    _actualizarEstado(temp);
+  }
+
+  Future<void> _conectarBluetooth() async {
+    if (conectado) {
+      await _device?.disconnect();
+      setState(() {
+        conectado = false;
+        _device = null;
+        _characteristic = null;
+      });
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+          content: Text('Buscando ESP32-C3...'),
+          backgroundColor: Colors.blue),
+    );
+
+    try {
+      await FlutterBluePlus.startScan(
+          timeout: const Duration(seconds: 5));
+
+      BluetoothDevice? found;
+      await for (final results in FlutterBluePlus.scanResults) {
+        for (ScanResult r in results) {
+          if (r.device.platformName == 'ESP32-C3') {
+            found = r.device;
+            await FlutterBluePlus.stopScan();
+            break;
+          }
+        }
+        if (found != null) break;
+      }
+
+      if (found == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('ESP32-C3 no encontrado'),
+              backgroundColor: Colors.red),
+        );
+        return;
+      }
+
+      await found.connect();
+      List<BluetoothService> services = await found.discoverServices();
+
+      for (BluetoothService service in services) {
+        if (service.uuid.toString() == SERVICE_UUID) {
+          for (BluetoothCharacteristic c in service.characteristics) {
+            if (c.uuid.toString() == CHAR_UUID) {
+              _characteristic = c;
+              await c.setNotifyValue(true);
+              c.lastValueStream.listen((value) {
+                if (value.isNotEmpty) {
+                  final tempStr = String.fromCharCodes(value);
+                  final temp = double.tryParse(tempStr);
+                  if (temp != null) _actualizarEstado(temp);
+                }
+              });
+            }
+          }
+        }
+      }
+
+      setState(() {
+        conectado = true;
+        _device = found;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('✅ ESP32-C3 conectado'),
+            backgroundColor: Colors.green),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red),
+      );
+    }
   }
 
   @override
@@ -71,22 +210,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D1B2A),
         title: const Text('ThermCare',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            style: TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold)),
         actions: [
           IconButton(
             icon: Icon(
-              conectado ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
-              color: conectado ? const Color(0xFF0A7AFF) : Colors.grey,
+              conectado
+                  ? Icons.bluetooth_connected
+                  : Icons.bluetooth_disabled,
+              color: conectado
+                  ? const Color(0xFF0A7AFF)
+                  : Colors.grey,
             ),
-            onPressed: () {
-              setState(() => conectado = !conectado);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(conectado ? 'ESP32 conectado' : 'Desconectado'),
-                  backgroundColor: conectado ? Colors.green : Colors.red,
-                ),
-              );
-            },
+            onPressed: _conectarBluetooth,
           )
         ],
       ),
@@ -99,11 +235,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         type: BottomNavigationBarType.fixed,
         onTap: (i) => setState(() => _currentIndex = i),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Historial'),
-          BottomNavigationBarItem(icon: Icon(Icons.emergency), label: 'Emergencia'),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Alertas'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard), label: 'Dashboard'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart), label: 'Historial'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.emergency), label: 'Emergencia'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.notifications), label: 'Alertas'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.person), label: 'Perfil'),
         ],
       ),
     );
@@ -123,7 +264,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               children: [
                 const Text('Temperatura actual',
-                    style: TextStyle(color: Colors.grey, fontSize: 16)),
+                    style:
+                        TextStyle(color: Colors.grey, fontSize: 16)),
                 const SizedBox(height: 12),
                 Text(
                   '${temperatura.toStringAsFixed(1)} °C',
@@ -135,7 +277,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 6),
                   decoration: BoxDecoration(
                     color: estadoColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
@@ -143,7 +286,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   child: Text(estado,
                       style: TextStyle(
-                          color: estadoColor, fontWeight: FontWeight.bold)),
+                          color: estadoColor,
+                          fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -153,7 +297,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               _infoCard('Paciente', nombreUsuario, Icons.person),
               const SizedBox(width: 16),
-              _infoCard('Última lectura',
+              _infoCard(
+                  'Última lectura',
                   '${DateTime.now().hour}:${DateTime.now().minute}',
                   Icons.access_time),
             ],
@@ -164,15 +309,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
             height: 52,
             child: ElevatedButton.icon(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0A7AFF),
+                backgroundColor: conectado
+                    ? Colors.green
+                    : const Color(0xFF0A7AFF),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14),
                 ),
               ),
-              icon: const Icon(Icons.refresh, color: Colors.white),
-              label: const Text('Leer temperatura',
-                  style: TextStyle(color: Colors.white, fontSize: 16)),
-              onPressed: _simularLectura,
+              icon: Icon(
+                conectado
+                    ? Icons.bluetooth_connected
+                    : Icons.bluetooth,
+                color: Colors.white,
+              ),
+              label: Text(
+                conectado
+                    ? 'Conectado — leyendo...'
+                    : 'Conectar ESP32-C3',
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 16),
+              ),
+              onPressed: _conectarBluetooth,
             ),
           ),
         ],
@@ -194,7 +351,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Icon(icon, color: const Color(0xFF0A7AFF), size: 20),
             const SizedBox(height: 8),
             Text(title,
-                style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                style: const TextStyle(
+                    color: Colors.grey, fontSize: 12)),
             Text(value,
                 style: const TextStyle(
                     color: Colors.white,
@@ -206,4 +364,3 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 }
-
